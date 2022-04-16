@@ -22,7 +22,7 @@
 #
 # =============================================================================
 
-from confluent_kafka import Consumer
+from confluent_kafka import Consumer, TopicPartition
 import json
 import ccloud_lib
 
@@ -39,15 +39,17 @@ if __name__ == '__main__':
     # 'auto.offset.reset=earliest' to start reading from the beginning of the
     #   topic if no committed offsets exist
     consumer_conf = ccloud_lib.pop_schema_registry_params_from_config(conf)
-    consumer_conf['group.id'] = 'python_example_group_1'
+    consumer_conf['group.id'] = 'python_example_group_2'
     consumer_conf['auto.offset.reset'] = 'earliest'
     consumer = Consumer(consumer_conf)
+    consumer.assign([TopicPartition(topic, 2)])
 
     # Subscribe to topic
     consumer.subscribe([topic])
 
     # Process messages
-    total_count = 0
+    jsonData = []
+    count = 0
     try:
         while True:
             msg = consumer.poll(1.0)
@@ -56,12 +58,26 @@ if __name__ == '__main__':
                 # Initial message consumption may take up to
                 # `session.timeout.ms` for the consumer group to
                 # rebalance and start consuming
-                print("Read all messages, Waiting for message or event/error in poll()")
+                print("Waiting for message or event/error in poll()")
+                if len(jsonData) > 0:
+                   json_obj = json.dumps(jsonData)
+                   with open("res.json", "w") as outfile:
+                     outfile.write(json_obj)
+                   jsonData.clear()
                 continue
             elif msg.error():
                 print('error: {}'.format(msg.error()))
             else:
-                print('Consumed one record')
+                # Check for Kafka message
+                record_key = msg.key()
+                record_value = msg.value()
+                data = json.loads(record_value)
+                jsonData.append(data)
+                count = count + 1
+                print("Consumed record with key {} and value {}, \
+                      and data is {}"
+                      .format(record_key, record_value, data))
+                print("Record Number: {}".format(count))
     except KeyboardInterrupt:
         pass
     finally:

@@ -111,3 +111,5 @@ if __name__ == '__main__':
         
     print("\nFlushing records...")
     producer.flush()
+
+# Was just trying to create a producer which is Schema Strict. Kinda failed and didn't had enough time to complete it. Most of the code is correct though

@@ -63,12 +63,20 @@ if __name__ == '__main__':
     jsonFile = open('bcsample.json')
     data = json.load(jsonFile)
     
+    count = 0
     for n in range(len(data)):
         record_key = str(uuid4())
         record_value = json.dumps(data[n])
         print("Producing record: {}\t{}".format(record_key, record_value))
         producer.produce(topic, key=record_key, value=record_value, on_delivery=acked)
+        count = count + 1;
+        if count % 5 == 0:
+          time.sleep(2)
+
+        if count % 15 == 0:
+           producer.flush()
+         #p.poll() serves delivery reports (on_delivery)
+         #from previous produce() calls.
         producer.poll(0)
     
-    producer.flush()
     print("{} messages were produced to topic {}!".format(delivered_records, topic))

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-#
 # Copyright 2020 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,21 +26,25 @@ import json
 import ccloud_lib
 from uuid import uuid4
 import time
+import random
 
 if __name__ == '__main__':
 
     # Read arguments and configurations and initialize
     args = ccloud_lib.parse_args()
     config_file = args.config_file
-    topic = args.topic
+    topics = ['simple_photo', 'simple-photo-2']
     conf = ccloud_lib.read_ccloud_config(config_file)
 
     # Create Producer instance
     producer_conf = ccloud_lib.pop_schema_registry_params_from_config(conf)
+    producer_conf['transactional.id'] = 'transaction-aware-producer'
     producer = Producer(producer_conf)
 
-    # Create topic if needed
-    ccloud_lib.create_topic(conf, topic)
+    # Initialize producer transaction.
+    producer.init_transactions()
+    # Start producer transaction.
+    producer.begin_transaction()
 
     delivered_records = 0
 
@@ -62,13 +65,37 @@ if __name__ == '__main__':
 
     jsonFile = open('bcsample.json')
     data = json.load(jsonFile)
-    
+
+    count = 0
+    isEvenFlag = True
     for n in range(len(data)):
         record_key = str(uuid4())
         record_value = json.dumps(data[n])
-        print("Producing record: {}\t{}".format(record_key, record_value))
-        producer.produce(topic, key=record_key, value=record_value, on_delivery=acked)
-        producer.poll(0)
-    
+        
+        if count % 2 == 0:
+           isEvenFlag = not isEvenFlag
+           # After producing 2 records each, randomly commit or abort the transaction
+           if random.choice([True, False]):
+              print('Committing Transaction')
+              producer.commit_transaction()
+              time.sleep(2)
+              producer.begin_transaction()
+
+           else:
+              print('Aborting Transaction')
+              producer.abort_transaction()
+              time.sleep(2)
+              producer.begin_transaction()
+
+        if isEvenFlag:
+           print("Producing record: {}\t{}\t in topic {}".format(record_key, record_value, topics[0]))
+           producer.produce(topics[0], key=record_key, value=record_value, on_delivery=acked)
+           producer.poll(0)
+        else:
+           print("Producing record: {}\t{}\t in topic {}".format(record_key, record_value, topics[1]))
+           producer.produce(topics[1], key=record_key, value=record_value, on_delivery=acked)
+           producer.poll(0)
+
+        count = count + 1
     producer.flush()
     print("{} messages were produced to topic {}!".format(delivered_records, topic))

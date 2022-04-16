@@ -47,7 +47,7 @@ if __name__ == '__main__':
     consumer.subscribe([topic])
 
     # Process messages
-    total_count = 0
+    jsonData = []
     try:
         while True:
             msg = consumer.poll(1.0)
@@ -56,12 +56,24 @@ if __name__ == '__main__':
                 # Initial message consumption may take up to
                 # `session.timeout.ms` for the consumer group to
                 # rebalance and start consuming
-                print("Read all messages, Waiting for message or event/error in poll()")
+                print("Waiting for message or event/error in poll()")
+                if len(jsonData) > 0:
+                   json_obj = json.dumps(jsonData)
+                   with open("res.json", "w") as outfile:
+                     outfile.write(json_obj)
+                   jsonData.clear()
                 continue
             elif msg.error():
                 print('error: {}'.format(msg.error()))
             else:
-                print('Consumed one record')
+                # Check for Kafka message
+                record_key = msg.key()
+                record_value = msg.value()
+                data = json.loads(record_value)
+                jsonData.append(data)
+                print("Consumed record with key {} and value {}, \
+                      and data is {}"
+                      .format(record_key, record_value, data))
     except KeyboardInterrupt:
         pass
     finally:

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-#
 # Copyright 2020 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,6 +26,7 @@ import json
 import ccloud_lib
 from uuid import uuid4
 import time
+import random
 
 if __name__ == '__main__':
 
@@ -38,7 +38,13 @@ if __name__ == '__main__':
 
     # Create Producer instance
     producer_conf = ccloud_lib.pop_schema_registry_params_from_config(conf)
+    producer_conf['transactional.id'] = 'transaction-aware-producer'
     producer = Producer(producer_conf)
+
+    # Initialize producer transaction.
+    producer.init_transactions()
+    # Start producer transaction.
+    producer.begin_transaction()
 
     # Create topic if needed
     ccloud_lib.create_topic(conf, topic)
@@ -62,13 +68,32 @@ if __name__ == '__main__':
 
     jsonFile = open('bcsample.json')
     data = json.load(jsonFile)
-    
+
+    count = 0
     for n in range(len(data)):
         record_key = str(uuid4())
         record_value = json.dumps(data[n])
         print("Producing record: {}\t{}".format(record_key, record_value))
         producer.produce(topic, key=record_key, value=record_value, on_delivery=acked)
         producer.poll(0)
-    
+        count = count + 1;
+        if count % 4 == 0:
+           time.sleep(2)
+
+           if random.choice([True, False]):
+              # If True, Commit the transaction
+              print('Going to commit the transaction')
+              producer.commit_transaction()
+
+              # Begin new transaction
+              producer.begin_transaction()
+           else:
+              # else abort transaction
+              print('Going to abort the transaction')
+              producer.abort_transaction()
+
+              # Begin new transaction
+              producer.begin_transaction()
+
     producer.flush()
     print("{} messages were produced to topic {}!".format(delivered_records, topic))
